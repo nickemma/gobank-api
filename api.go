@@ -9,31 +9,6 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// writeJSON writes the JSON representation of v to the http.ResponseWriter
-func WriteJSON(w http.ResponseWriter, status int, v any) error {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	return json.NewEncoder(w).Encode(v)
-}
-
-// apiFunc is a function that handles an API request
-type apiFunc func(w http.ResponseWriter, r *http.Request) error
-
-// ApiError is an error response from the API
-type ApiError struct {
-	Error string `json:"error"`
-}
-
-// makeHTTPHandler creates an http.HandlerFunc from an apiFunc
-func makeHTTPHandler(f apiFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if err := f(w, r); err != nil {
-			// handle error here
-			WriteJSON(w, http.StatusBadRequest, ApiError{Error: err.Error()})
-		}
-	}
-}
-
 // APIServer is an HTTP server that exposes a JSON API
 type APIServer struct {
 	listenAddr string
@@ -93,4 +68,31 @@ func (s *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) 
 // handleTransfer handles requests to the /transfer endpoint
 func (s *APIServer) handleTransfer(w http.ResponseWriter, r *http.Request) error {
 	return nil
+}
+
+// ================= Helper Functions =================
+
+// writeJSON writes the JSON representation of v to the http.ResponseWriter
+func WriteJSON(w http.ResponseWriter, status int, v any) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	return json.NewEncoder(w).Encode(v)
+}
+
+// apiFunc is a function that handles an API request
+type apiFunc func(w http.ResponseWriter, r *http.Request) error
+
+// ApiError is an error response from the API
+type ApiError struct {
+	Error string `json:"error"`
+}
+
+// makeHTTPHandler creates an http.HandlerFunc from an apiFunc
+func makeHTTPHandler(f apiFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := f(w, r); err != nil {
+			// handle error here
+			WriteJSON(w, http.StatusBadRequest, ApiError{Error: err.Error()})
+		}
+	}
 }
