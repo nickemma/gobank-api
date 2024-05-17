@@ -30,6 +30,7 @@ func (s *APIServer) Run() {
 
 	// Define the routes for the API
 	router.HandleFunc("/account", makeHTTPHandler(s.handleAccount))
+	router.HandleFunc("/account/create", makeHTTPHandler(s.handleCreateAccount))
 	router.HandleFunc("/account/{id}", makeHTTPHandler(s.handleGetAccountByID))
 
 	// Start the HTTP server
@@ -57,7 +58,13 @@ func (s *APIServer) handleAccount(w http.ResponseWriter, r *http.Request) error 
 
 // handleGetAccount handles requests to the /accounts endpoint
 func (s *APIServer) handleGetAccount(w http.ResponseWriter, r *http.Request) error {
-	return nil
+	accounts, err := s.store.GetAccounts()
+
+	if err != nil {
+		return err
+	}
+
+	return WriteJSON(w, http.StatusOK, accounts)
 }
 
 // handleGetAccount handles requests to the /account/{id} endpoint
