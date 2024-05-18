@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"fmt"
 
 	_ "github.com/lib/pq"
 )
@@ -79,7 +80,8 @@ func (s *PostgresStore) CreateAccount(account *Account) error {
 }
 
 func (s *PostgresStore) DeleteAccount(id int) error {
-	return nil
+	_, err := s.db.Query(`DELETE FROM account WHERE id = $1`, id)
+	return err
 }
 
 func (s *PostgresStore) UpdateAccount(account *Account) error {
@@ -87,7 +89,19 @@ func (s *PostgresStore) UpdateAccount(account *Account) error {
 }
 
 func (s *PostgresStore) GetAccountByID(id int) (*Account, error) {
-	return nil, nil
+	rows, err := s.db.Query(`SELECT * FROM account WHERE id = $1`, id)
+
+	// Check if there was an error executing the SQL query
+	if err != nil {
+		return nil, err
+	}
+
+	// Iterate over the rows returned by the SQL query
+	for rows.Next() {
+		return ScanInToAccount(rows)
+	}
+	// Return the account returned by the SQL query
+	return nil, fmt.Errorf("account not found: %v", id)
 }
 
 func (s *PostgresStore) GetAccounts() ([]*Account, error) {
@@ -103,18 +117,7 @@ func (s *PostgresStore) GetAccounts() ([]*Account, error) {
 
 	// Iterate over the rows returned by the SQL query
 	for rows.Next() {
-		account := new(Account)
-		// account := &Account{}
-		// Scan the values from the current row into the account struct
-		err := rows.Scan(
-			&account.ID,
-			&account.FirstName,
-			&account.LastName,
-			&account.AccountNumber,
-			&account.Balance,
-			&account.CreatedAt,
-		)
-
+		account, err := ScanInToAccount(rows)
 		// Check if there was an error scanning the values
 		if err != nil {
 			return nil, err
@@ -126,4 +129,24 @@ func (s *PostgresStore) GetAccounts() ([]*Account, error) {
 
 	// returned by the SQL query
 	return accounts, nil
+}
+
+func ScanInToAccount(rows *sql.Rows) (*Account, error) {
+	account := new(Account)
+	// Scan the values from the current row into the account struct
+	err := rows.Scan(
+		&account.ID,
+		&account.FirstName,
+		&account.LastName,
+		&account.AccountNumber,
+		&account.Balance,
+		&account.CreatedAt,
+	)
+
+	// Check if there was an error scanning the values
+	if err != nil {
+		return nil, err
+	}
+
+	return account, nil
 }

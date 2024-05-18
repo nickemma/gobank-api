@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
 )
@@ -29,9 +30,11 @@ func (s *APIServer) Run() {
 	router := mux.NewRouter()
 
 	// Define the routes for the API
-	router.HandleFunc("/account", makeHTTPHandler(s.handleAccount))
-	router.HandleFunc("/account/create", makeHTTPHandler(s.handleCreateAccount))
-	router.HandleFunc("/account/{id}", makeHTTPHandler(s.handleGetAccountByID))
+	// Define the routes for the API
+	router.HandleFunc("/account", makeHTTPHandler(s.handleAccount)).Methods("GET")
+	router.HandleFunc("/account/create", makeHTTPHandler(s.handleCreateAccount)).Methods("POST")
+	router.HandleFunc("/transfer", makeHTTPHandler(s.handleTransfer)).Methods("POST")
+	router.HandleFunc("/account/{id}", makeHTTPHandler(s.handleGetAccountByID)).Methods("GET", "DELETE")
 
 	// Start the HTTP server
 	log.Println("JSON API server is running on", s.listenAddr)
@@ -48,11 +51,7 @@ func (s *APIServer) handleAccount(w http.ResponseWriter, r *http.Request) error 
 	if r.Method == "POST" {
 		return s.handleCreateAccount(w, r)
 	}
-	if r.Method == "DELETE" {
-		return s.handleDeleteAccount(w, r)
-	}
 
-	// Return an error for unsupported HTTP methods
 	return fmt.Errorf("unsupported method %s", r.Method)
 }
 
@@ -69,15 +68,40 @@ func (s *APIServer) handleGetAccount(w http.ResponseWriter, r *http.Request) err
 
 // handleGetAccount handles requests to the /account/{id} endpoint
 func (s *APIServer) handleGetAccountByID(w http.ResponseWriter, r *http.Request) error {
-	id := mux.Vars(r)["id"]
-	fmt.Println("ID:", id)
+	if r.Method == "GET" {
+		id, err := getID(r)
+		if err != nil {
+			return err
+		}
 
-	return WriteJSON(w, http.StatusOK, &Account{})
+		account, err := s.store.GetAccountByID(id)
+
+		if err != nil {
+			return err
+		}
+
+		return WriteJSON(w, http.StatusOK, account)
+	}
+
+	if r.Method == "DELETE" {
+		return s.handleDeleteAccount(w, r)
+	}
+
+	return fmt.Errorf("unsupported method %s", r.Method)
 }
 
 // handleDeleteAccount handles requests to the /account/{id} endpoint
 func (s *APIServer) handleDeleteAccount(w http.ResponseWriter, r *http.Request) error {
-	return nil
+	id, err := getID(r)
+	if err != nil {
+		return err
+	}
+
+	if err := s.store.DeleteAccount(id); err != nil {
+		return err
+	}
+
+	return WriteJSON(w, http.StatusOK, map[string]int{"account deleted": id})
 }
 
 // handleCreateAccount handles requests to the /account endpoint
@@ -89,6 +113,9 @@ func (s *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) 
 	if err := json.NewDecoder(r.Body).Decode(createAccountReq); err != nil {
 		return err
 	}
+
+	// Close the request body
+	defer r.Body.Close()
 
 	// Create a new account with the provided first and last name
 	account := NewAccount(createAccountReq.FirstName, createAccountReq.LastName)
@@ -104,7 +131,19 @@ func (s *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) 
 
 // handleTransfer handles requests to the /transfer endpoint
 func (s *APIServer) handleTransfer(w http.ResponseWriter, r *http.Request) error {
-	return nil
+	// Create a new CreateAccountRequest struct
+	transferReq := new(TransferAccountRequest)
+
+	// Decode the JSON request body into the CreateAccountRequest struct
+	if err := json.NewDecoder(r.Body).Decode(transferReq); err != nil {
+		return err
+	}
+
+	// Close the request body
+	defer r.Body.Close()
+
+	return WriteJSON(w, http.StatusOK, transferReq)
+	// Transfer the money between the accounts
 }
 
 // ================= Helper Functions =================
@@ -136,4 +175,17 @@ func makeHTTPHandler(f apiFunc) http.HandlerFunc {
 			WriteJSON(w, http.StatusBadRequest, ApiError{Error: err.Error()})
 		}
 	}
+}
+
+// getID extracts the ID from the request URL
+func getID(r *http.Request) (int, error) {
+	idx := mux.Vars(r)["id"]
+
+	id, err := strconv.Atoi(idx)
+
+	if err != nil {
+		return id, fmt.Errorf("invalid account ID: %v", idx)
+	}
+
+	return id, nil
 }
