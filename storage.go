@@ -14,6 +14,7 @@ type Storage interface {
 	UpdateAccount(account *Account) error
 	GetAccounts() ([]*Account, error)
 	GetAccountByID(id int) (*Account, error)
+	GetAccountByNumber(int) (*Account, error)
 }
 
 // PostgresStore is a PostgreSQL implementation of the Storage interface
@@ -55,6 +56,7 @@ func (s *PostgresStore) CreateAccountTable() error {
         first_name VARCHAR(50),
         last_name VARCHAR(50),
         account_number SERIAL,
+		encrypted_password VARCHAR(255),
         balance SERIAL,
         created_at TIMESTAMP
     );`
@@ -67,11 +69,11 @@ func (s *PostgresStore) CreateAccountTable() error {
 // CreateAccount inserts a new account into the account table
 func (s *PostgresStore) CreateAccount(account *Account) error {
 	// Define the SQL query for inserting a new account
-	query := `INSERT INTO account (first_name, last_name, account_number, balance, created_at) 
-               VALUES ($1, $2, $3, $4, $5)`
+	query := `INSERT INTO account (first_name, last_name, account_number, encrypted_password, balance, created_at) 
+               VALUES ($1, $2, $3, $4, $5, $6)`
 
 	// Execute the SQL query with the provided account data
-	_, err := s.db.Exec(query, account.FirstName, account.LastName, account.AccountNumber, account.Balance, account.CreatedAt)
+	_, err := s.db.Exec(query, account.FirstName, account.LastName, account.AccountNumber, account.EncryptedPassword, account.Balance, account.CreatedAt)
 	if err != nil {
 		return err
 	}
@@ -102,6 +104,21 @@ func (s *PostgresStore) GetAccountByID(id int) (*Account, error) {
 	}
 	// Return the account returned by the SQL query
 	return nil, fmt.Errorf("account not found: %v", id)
+}
+func (s *PostgresStore) GetAccountByNumber(number int) (*Account, error) {
+	rows, err := s.db.Query(`SELECT * FROM account WHERE number = $1`, number)
+
+	// Check if there was an error executing the SQL query
+	if err != nil {
+		return nil, err
+	}
+
+	// Iterate over the rows returned by the SQL query
+	for rows.Next() {
+		return ScanInToAccount(rows)
+	}
+	// Return the account returned by the SQL query
+	return nil, fmt.Errorf("account not found: %v", number)
 }
 
 func (s *PostgresStore) GetAccounts() ([]*Account, error) {

@@ -33,7 +33,7 @@ func (s *APIServer) Run() {
 	router := mux.NewRouter()
 
 	// Define the routes for the API
-	// Define the routes for the API
+	router.HandleFunc("/login", makeHTTPHandler(s.handleLogin)).Methods("POST")
 	router.HandleFunc("/account", makeHTTPHandler(s.handleAccount)).Methods("GET")
 	router.HandleFunc("/account/create", makeHTTPHandler(s.handleCreateAccount)).Methods("POST")
 	router.HandleFunc("/transfer", makeHTTPHandler(s.handleTransfer)).Methods("POST")
@@ -42,6 +42,34 @@ func (s *APIServer) Run() {
 	// Start the HTTP server
 	log.Println("JSON API server is running on", s.listenAddr)
 	http.ListenAndServe(s.listenAddr, router)
+}
+
+// handleLogin handles requests to the /login endpoint
+func (s *APIServer) handleLogin(w http.ResponseWriter, r *http.Request) error {
+	if r.Method != "POST" {
+		return fmt.Errorf("unsupported method %s", r.Method)
+	}
+	// Create a new LoginRequest struct
+	var loginReq LoginRequest
+
+	// Decode the JSON request body into the LoginRequest struct
+	if err := json.NewDecoder(r.Body).Decode(&loginReq); err != nil {
+		return err
+	}
+
+	// Close the request body
+	defer r.Body.Close()
+
+	// Get the account from the database
+	acc, err := s.store.GetAccountByNumber(int(loginReq.Number))
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(acc)
+
+	return WriteJSON(w, http.StatusOK, loginReq)
 }
 
 // handleAccount handles requests to the /account endpoint
@@ -121,21 +149,17 @@ func (s *APIServer) handleCreateAccount(w http.ResponseWriter, r *http.Request) 
 	defer r.Body.Close()
 
 	// Create a new account with the provided first and last name
-	account := NewAccount(createAccountReq.FirstName, createAccountReq.LastName)
+	account, err := NewAccount(createAccountReq.FirstName, createAccountReq.LastName, createAccountReq.Password)
+
+	if err != nil {
+		return err
+	}
 
 	// Store the account in the database
 	if err := s.store.CreateAccount(account); err != nil {
 		return err
 	}
 
-	// Create a JWT token for the account
-	tokenString, err := createJWT(account)
-
-	if err != nil {
-		return err
-	}
-
-	fmt.Println("Token:", tokenString)
 	// Return the account as JSON
 	return WriteJSON(w, http.StatusOK, account)
 }
