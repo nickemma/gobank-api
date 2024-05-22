@@ -1,0 +1,14 @@
+version: '3'
+
+services:
+  db:
+    image: postgres:latest
+    volumes:
+      - ./data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: gobank
+      POSTGRES_DB: some-postgres
+    ports:
+      - "5432:5432"
+    restart: always
